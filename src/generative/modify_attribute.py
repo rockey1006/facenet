@@ -99,20 +99,20 @@ def main(args):
                 attribute_vectors = np.array(f.get('attribute_vectors'))
 
             # Reconstruct faces while adding varying amount of the selected attribute vector
-            attribute_index = 31 # 31: 'Smiling'
-            image_indices = [8,11,13,18,19,26,31,39,47,54,56,57,58,59,60,73]
+            attribute_index = 31 # 31: 1.pick an attribute  'Smiling'# 
+            image_indices = [8,11,13,18,19,26,31,39,47,54,56,57,58,59,60,73]#2.pick indexs of the faces
             nrof_images = len(image_indices)
             nrof_interp_steps = 10
-            sweep_latent_var = np.zeros((nrof_interp_steps*nrof_images, args.latent_var_size), np.float32)
+            sweep_latent_var = np.zeros((nrof_interp_steps*nrof_images, args.latent_var_size), np.float32)#3.caculates the sweep_latent_var
             for j in range(nrof_images):
                 image_index = image_indices[j]
                 idx = np.argwhere(attributes[:,attribute_index]==-1)[image_index,0]
                 for i in range(nrof_interp_steps):
                     sweep_latent_var[i+nrof_interp_steps*j,:] = latent_vars[idx,:] + 5.0*i/nrof_interp_steps*attribute_vectors[attribute_index,:]
                 
-            recon = sess.run(reconstructed, feed_dict={latent_var:sweep_latent_var})
+            recon = sess.run(reconstructed, feed_dict={latent_var:sweep_latent_var})#4.add smiles to the reconstructed outputs of faces that picked.
             
-            img = facenet.put_images_on_grid(recon, shape=(nrof_interp_steps*2,int(math.ceil(nrof_images/2))))
+            img = facenet.put_images_on_grid(recon, shape=(nrof_interp_steps*2,int(math.ceil(nrof_images/2))))#5.put the results of #4 to a 20*8 grid as one image
             
             image_filename = os.path.expanduser(args.output_image_filename)
             print('Writing generated image to %s' % image_filename)
