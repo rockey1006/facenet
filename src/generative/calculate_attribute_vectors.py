@@ -44,12 +44,12 @@ def main(args):
     img_mean = np.array([134.10714722, 102.52040863, 87.15436554])
     img_stddev = np.sqrt(np.array([3941.30175781, 2856.94287109, 2519.35791016]))
     
-    vae_checkpoint = os.path.expanduser(args.vae_checkpoint)
+    vae_checkpoint = os.path.expanduser(args.vae_checkpoint)#1.加载pretrained VAE
     
-    fields, attribs_dict = read_annotations(args.annotations_filename)
+    fields, attribs_dict = read_annotations(args.annotations_filename)#2.加载attributes 的40个属性名称和每张图片的属性值
     
-    vae_def = importlib.import_module(args.vae_def)
-    vae = vae_def.Vae(args.latent_var_size)
+    vae_def = importlib.import_module(args.vae_def)#dfc-vae
+    vae = vae_def.Vae(args.latent_var_size)#隐变量空间100
     gen_image_size = vae.get_image_size()
 
     with tf.Graph().as_default():
@@ -64,22 +64,22 @@ def main(args):
             key = os.path.split(img)[1].split('.')[0]
             attr = attribs_dict[key]
             assert len(attr)==nrof_attributes
-            attribs_list.append(attr)
+            attribs_list.append(attr)#每张图片的40维属性值 [1,-1...]
             
         # Create the input queue
         index_list = range(len(image_list))
-        input_queue = tf.train.slice_input_producer([image_list, attribs_list, index_list], num_epochs=1, shuffle=False)        
+        input_queue = tf.train.slice_input_producer([image_list, attribs_list, index_list], num_epochs=1, shuffle=False)  #tensor list 包括图片，40维属性，图片总长度      
         
         nrof_preprocess_threads = 4
         image_per_thread = []
         for _ in range(nrof_preprocess_threads):
-            filename = input_queue[0]
+            filename = input_queue[0]#resize 图片
             file_contents = tf.read_file(filename)
             image = tf.image.decode_image(file_contents, channels=3)
             image = tf.image.resize_image_with_crop_or_pad(image, 160, 160)
             #image = tf.image.resize_images(image, (64,64))
             image.set_shape((args.image_size, args.image_size, 3))
-            attrib = input_queue[1]
+            attrib = input_queue[1]#attribs_list，
             attrib.set_shape((nrof_attributes,))
             image = tf.cast(image, tf.float32)
             image_per_thread.append([image, attrib, input_queue[2]])
@@ -101,7 +101,7 @@ def main(args):
         
         epsilon = tf.random_normal((tf.shape(mean)[0], args.latent_var_size))
         std = tf.exp(log_variance/2)
-        latent_var = mean + epsilon * std
+        latent_var = mean + epsilon * std##计算latent值     
         
         # Create a saver
         saver = tf.train.Saver(tf.trainable_variables(), max_to_keep=3)
@@ -129,7 +129,7 @@ def main(args):
             for i in range(nrof_batches):
                 start_time = time.time()
                 latent_var_, attribs_, indices_ = sess.run([latent_var, attribs, indices])
-                latent_vars[indices_,:] = latent_var_
+                latent_vars[indices_,:] = latent_var_          
                 attributes[indices_,:] = attribs_
                 duration = time.time() - start_time
                 print('Batch %d/%d: %.3f seconds' % (i+1, nrof_batches, duration))
@@ -138,12 +138,12 @@ def main(args):
              
             # Calculate average change in the latent variable when each attribute changes
             attribute_vectors = np.zeros((nrof_attributes, args.latent_var_size), np.float32)
-            for i in range(nrof_attributes):
-                pos_idx = np.argwhere(attributes[:,i]==1)[:,0]
-                neg_idx = np.argwhere(attributes[:,i]==-1)[:,0]
-                pos_avg = np.mean(latent_vars[pos_idx,:], 0)
+            for i in range(nrof_attributes):#40
+                pos_idx = np.argwhere(attributes[:,i]==1)[:,0]#在所有人的属性列表中：1.把某个属性==1的人记下 2.选择所有符合条件的人的值的集合比如40
+                neg_idx = np.argwhere(attributes[:,i]==-1)[:,0]#同上
+                pos_avg = np.mean(latent_vars[pos_idx,:], 0)#找到第40个隐变量的值，求100个值的平均值
                 neg_avg = np.mean(latent_vars[neg_idx,:], 0)
-                attribute_vectors[i,:] = pos_avg - neg_avg
+                attribute_vectors[i,:] = pos_avg - neg_avg#计算 40个100维度的attribute_vectors：，某个属性的全部100个值==
             
             filename = os.path.expanduser(args.output_filename)
             print('Writing attribute vectors, latent variables and attributes to %s' % filename)
